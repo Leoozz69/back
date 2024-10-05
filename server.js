@@ -3,41 +3,43 @@ const mercadopago = require('mercadopago');
 const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
-const nodemailer = require('nodemailer');
-const cors = require('cors');  // Importando cors
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 const PORT = process.env.PORT || 10000;
 
-// Configurar CORS para permitir requisições do Netlify
-app.use(cors({
-  origin: 'https://fazopix1.netlify.app'
-}));
-
-// Configurando Mercado Pago com token de maior de idade
+// Configurando Mercado Pago com o token de acesso
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
 
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
-// Variável global para armazenar o valor doado
-let donationAmount = 0;
+// Configuração do Socket.IO para verificar conexões
+io.on('connection', (socket) => {
+  console.log('Novo cliente conectado:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('Cliente desconectado:', socket.id);
+  });
+});
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
 
-  donationAmount = amount;
-
   let payment_data = {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications',
+    notification_url: 'https://back-wag6.onrender.com/notifications', // URL de notificação
     payer: {
       first_name: name,
       last_name: 'Lindo',
@@ -62,6 +64,7 @@ app.post('/generate_pix_qr', (req, res) => {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
 
+        // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
@@ -74,15 +77,21 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
-  const paymentId = req.body.data.id;
+  const paymentId = req.body.data && req.body.data.id;
+
+  if (!paymentId) {
+    console.error('Erro: paymentId não encontrado na notificação.');
+    return res.sendStatus(400);
+  }
 
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
 
       if (paymentStatus === 'approved') {
+        // Emitir evento para confirmar pagamento
         io.emit('paymentApproved');
-        console.log('Pagamento aprovado!');
+        console.log('Pagamento aprovado! Evento emitido.');
       }
 
       res.sendStatus(200);
@@ -91,42 +100,6 @@ app.post('/notifications', (req, res) => {
       console.error('Erro ao processar notificação:', error);
       res.sendStatus(500);
     });
-});
-
-// Rota para processar o envio dos dados do Discord
-app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail } = req.body;
-
-  if (!discordNick || !confirmationName || !confirmationEmail) {
-    res.status(400).send('Todos os campos são obrigatórios.');
-    return;
-  }
-
-  // Configurar transporte de e-mail usando Nodemailer
-  let transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: 'leolesane1234@gmail.com',
-      pass: 'nnnj rdgl imoq njda'  // Substituir por um App Password para segurança
-    }
-  });
-
-  let mailOptions = {
-    from: 'leolesane1234@gmail.com',
-    to: 'ogustadesigner@gmail.com',
-    subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount.toFixed(2)}`
-  };
-
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error('Erro ao enviar e-mail:', error);
-      res.status(500).send('Erro ao enviar os dados.');
-    } else {
-      console.log('E-mail enviado:', info.response);
-      res.send('Dados enviados com sucesso.');
-    }
-  });
 });
 
 // Inicializa o servidor
