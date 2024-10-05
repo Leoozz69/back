@@ -4,11 +4,17 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
+const cors = require('cors');  // Importando cors
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+
+// Configurar CORS para permitir requisições do Netlify
+app.use(cors({
+  origin: 'https://fazopix1.netlify.app'
+}));
 
 // Configurando Mercado Pago com token de maior de idade
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
@@ -16,7 +22,7 @@ mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Adicionado para processar requisições de formulário
+app.use(express.urlencoded({ extended: true }));
 
 // Variável global para armazenar o valor doado
 let donationAmount = 0;
@@ -25,13 +31,13 @@ let donationAmount = 0;
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
 
-  donationAmount = amount; // Armazena o valor da doação para uso posterior
+  donationAmount = amount;
 
   let payment_data = {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://great-rooster-firmly.ngrok-free.app/notifications',
+    notification_url: 'https://back-wag6.onrender.com/notifications',
     payer: {
       first_name: name,
       last_name: 'Lindo',
@@ -100,8 +106,8 @@ app.post('/send_discord_data', (req, res) => {
   let transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: 'leolesane1234@gmail.com', // Seu e-mail
-      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
+      user: 'leolesane1234@gmail.com',
+      pass: 'nnnj rdgl imoq njda'  // Substituir por um App Password para segurança
     }
   });
 
