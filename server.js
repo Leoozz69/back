@@ -4,12 +4,16 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
-const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
-const PORT = process.env.PORT || 10000; // Porta usada no Render
+const io = socketIo(server, {
+  cors: {
+    origin: '*', // Permitir requisições de qualquer origem
+    methods: ['GET', 'POST']
+  }
+});
+const PORT = process.env.PORT || 10000;
 
 // Configurando Mercado Pago com token de maior de idade
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
@@ -17,7 +21,6 @@ mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(cors()); // Habilitar CORS para permitir requisições de diferentes origens
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
@@ -54,7 +57,7 @@ app.post('/generate_pix_qr', (req, res) => {
 
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
       } else {
-        res.status(500).send('Erro ao gerar o QR Code PIX');
+        res.status(500).send('Erro ao gerar QR Code PIX');
       }
     }).catch(function (error) {
       console.error('Erro ao criar o pagamento PIX:', error);
@@ -64,40 +67,28 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
-  try {
-    const paymentId = req.body?.data?.id;
+  const paymentId = req.body.data.id;
 
-    if (!paymentId) {
-      console.error('ID de pagamento não encontrado na notificação:', req.body);
-      res.status(400).send('ID de pagamento não encontrado.');
-      return;
-    }
+  mercadopago.payment.findById(paymentId)
+    .then(function (response) {
+      const paymentStatus = response.body.status;
 
-    // Buscar detalhes do pagamento pelo ID
-    mercadopago.payment.findById(paymentId)
-      .then(function (response) {
-        const paymentStatus = response.body.status;
+      if (paymentStatus === 'approved') {
+        io.emit('paymentApproved');
+        console.log('Pagamento aprovado!');
+      }
 
-        if (paymentStatus === 'approved') {
-          io.emit('paymentApproved');
-          console.log('Pagamento aprovado!');
-        }
-
-        res.sendStatus(200);
-      })
-      .catch(function (error) {
-        console.error('Erro ao buscar detalhes do pagamento:', error);
-        res.sendStatus(500);
-      });
-  } catch (error) {
-    console.error('Erro ao processar notificação:', error);
-    res.sendStatus(500);
-  }
+      res.sendStatus(200);
+    })
+    .catch(function (error) {
+      console.error('Erro ao processar notificação:', error);
+      res.sendStatus(500);
+    });
 });
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail } = req.body;
+  const { discordNick, confirmationName, confirmationEmail, donationAmount } = req.body;
 
   if (!discordNick || !confirmationName || !confirmationEmail) {
     res.status(400).send('Todos os campos são obrigatórios.');
@@ -109,15 +100,15 @@ app.post('/send_discord_data', (req, res) => {
     service: 'gmail',
     auth: {
       user: 'leolesane1234@gmail.com', // Seu e-mail
-      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
+      pass: 'nnnjrdglimoqnjda' // Sua senha de app (use app passwords para maior segurança)
     }
   });
 
   let mailOptions = {
     from: 'leolesane1234@gmail.com',
-    to: 'ogustadesigner@gmail.com',
+    to: 'ogustadesiner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nick do Discord: ${discordNick}\nNome: ${confirmationName}\nEmail: ${confirmationEmail}`
+    text: `Nick do Discord: ${discordNick}\nNome: ${confirmationName}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
@@ -133,5 +124,5 @@ app.post('/send_discord_data', (req, res) => {
 
 // Inicializa o servidor
 server.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
