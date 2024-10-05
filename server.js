@@ -22,7 +22,11 @@ mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: 'https://fazopix1.netlify.app', // Permitir o domínio do frontend
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 
 // Configuração do Socket.IO para verificar conexões
 io.on('connection', (socket) => {
@@ -35,6 +39,10 @@ io.on('connection', (socket) => {
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
+
+  if (!name || !amount) {
+    return res.status(400).send('Nome e valor da doação são obrigatórios.');
+  }
 
   let payment_data = {
     transaction_amount: amount,
@@ -105,10 +113,10 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail, donationAmount } = req.body;
+  const { discordNick, confirmationName, confirmationEmail } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail || !donationAmount) {
-    res.status(400).send('Todos os campos são obrigatórios.');
+  if (!discordNick || !confirmationName || !confirmationEmail) {
+    res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
 
@@ -125,16 +133,16 @@ app.post('/send_discord_data', (req, res) => {
     from: 'leolesane1234@gmail.com',
     to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount.toFixed(2)}`
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.error('Erro ao enviar e-mail:', error);
-      res.status(500).send('Erro ao enviar os dados.');
+      res.status(500).json({ error: 'Erro ao enviar os dados.' });
     } else {
       console.log('E-mail enviado:', info.response);
-      res.send('Dados enviados com sucesso.');
+      res.status(200).json({ message: 'Dados enviados com sucesso.' });
     }
   });
 });
