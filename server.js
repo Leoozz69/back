@@ -4,6 +4,7 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const server = http.createServer(app);
@@ -100,6 +101,42 @@ app.post('/notifications', (req, res) => {
       console.error('Erro ao processar notificação:', error);
       res.sendStatus(500);
     });
+});
+
+// Rota para processar o envio dos dados do Discord
+app.post('/send_discord_data', (req, res) => {
+  const { discordNick, confirmationName, confirmationEmail } = req.body;
+
+  if (!discordNick || !confirmationName || !confirmationEmail) {
+    res.status(400).send('Todos os campos são obrigatórios.');
+    return;
+  }
+
+  // Configurar transporte de e-mail usando Nodemailer
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'leolesane1234@gmail.com', // Seu e-mail
+      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
+    }
+  });
+
+  let mailOptions = {
+    from: 'leolesane1234@gmail.com',
+    to: 'ogustadesigner@gmail.com',
+    subject: 'Dados do Discord recebidos',
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount.toFixed(2)}`
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Erro ao enviar e-mail:', error);
+      res.status(500).send('Erro ao enviar os dados.');
+    } else {
+      console.log('E-mail enviado:', info.response);
+      res.send('Dados enviados com sucesso.');
+    }
+  });
 });
 
 // Inicializa o servidor
