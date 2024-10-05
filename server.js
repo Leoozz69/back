@@ -105,9 +105,9 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail } = req.body;
+  const { discordNick, confirmationName, confirmationEmail, donationAmount } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail) {
+  if (!discordNick || !confirmationName || !confirmationEmail || !donationAmount) {
     res.status(400).send('Todos os campos são obrigatórios.');
     return;
   }
