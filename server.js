@@ -4,6 +4,7 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +17,7 @@ mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(cors()); // Habilitar CORS para permitir requisições de diferentes origens
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
