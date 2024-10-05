@@ -4,20 +4,18 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
-const cors = require('cors'); // Importando CORS
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000; // Porta usada no Render
 
 // Configurando Mercado Pago com token de maior de idade
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
 
-// Middleware para servir arquivos estáticos e JSON
+// Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(cors()); // Habilitando CORS
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
@@ -27,7 +25,7 @@ app.post('/generate_pix_qr', (req, res) => {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications', // URL de notificação deve ser sua URL de back-end
+    notification_url: 'https://back-wag6.onrender.com/notifications',
     payer: {
       first_name: name,
       last_name: 'Lindo',
@@ -64,23 +62,35 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
-  const paymentId = req.body.data.id;
+  try {
+    const paymentId = req.body?.data?.id;
 
-  mercadopago.payment.findById(paymentId)
-    .then(function (response) {
-      const paymentStatus = response.body.status;
+    if (!paymentId) {
+      console.error('ID de pagamento não encontrado na notificação:', req.body);
+      res.status(400).send('ID de pagamento não encontrado.');
+      return;
+    }
 
-      if (paymentStatus === 'approved') {
-        io.emit('paymentApproved');
-        console.log('Pagamento aprovado!');
-      }
+    // Buscar detalhes do pagamento pelo ID
+    mercadopago.payment.findById(paymentId)
+      .then(function (response) {
+        const paymentStatus = response.body.status;
 
-      res.sendStatus(200);
-    })
-    .catch(function (error) {
-      console.error('Erro ao processar notificação:', error);
-      res.sendStatus(500);
-    });
+        if (paymentStatus === 'approved') {
+          io.emit('paymentApproved');
+          console.log('Pagamento aprovado!');
+        }
+
+        res.sendStatus(200);
+      })
+      .catch(function (error) {
+        console.error('Erro ao buscar detalhes do pagamento:', error);
+        res.sendStatus(500);
+      });
+  } catch (error) {
+    console.error('Erro ao processar notificação:', error);
+    res.sendStatus(500);
+  }
 });
 
 // Rota para processar o envio dos dados do Discord
@@ -103,7 +113,7 @@ app.post('/send_discord_data', (req, res) => {
 
   let mailOptions = {
     from: 'leolesane1234@gmail.com',
-    to: 'ogustadesiner@gmail.com',
+    to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
     text: `Nick do Discord: ${discordNick}\nNome: ${confirmationName}\nEmail: ${confirmationEmail}`
   };
