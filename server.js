@@ -1,4 +1,3 @@
-
 const express = require('express');
 const mercadopago = require('mercadopago');
 const path = require('path');
@@ -11,7 +10,7 @@ const server = http.createServer(app);
 const io = socketIo(server);
 const PORT = process.env.PORT || 3000;
 
-// Configurando Mercado Pago com novo token de maior de idade
+// Configurando Mercado Pago com o token de acesso
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
 
 // Middleware para servir arquivos estáticos
@@ -27,7 +26,7 @@ app.post('/generate_pix_qr', (req, res) => {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications',
+    notification_url: 'https://back-wag6.onrender.com/notifications', // URL de notificação
     payer: {
       first_name: name,
       last_name: 'Lindo',
@@ -61,6 +60,33 @@ app.post('/generate_pix_qr', (req, res) => {
       console.error('Erro ao criar o pagamento PIX:', error);
       res.status(500).send('Erro ao criar o pagamento PIX');
     });
+});
+
+// Rota para receber notificações do Mercado Pago
+app.post('/notifications', (req, res) => {
+  const paymentId = req.body.data && req.body.data.id;
+
+  if (paymentId) {
+    // Consultar o pagamento para verificar o status
+    mercadopago.payment.findById(paymentId)
+      .then(response => {
+        const payment = response.body;
+
+        if (payment.status === 'approved') {
+          // Emitir um evento via Socket.IO para informar que o pagamento foi aprovado
+          io.emit('paymentApproved');
+          console.log('Pagamento aprovado:', paymentId);
+        }
+
+        res.sendStatus(200);
+      })
+      .catch(error => {
+        console.error('Erro ao consultar pagamento:', error);
+        res.sendStatus(500);
+      });
+  } else {
+    res.sendStatus(400);
+  }
 });
 
 // Iniciar o servidor
