@@ -7,13 +7,8 @@ const nodemailer = require('nodemailer');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: '*', // Permitir requisições de qualquer origem
-    methods: ['GET', 'POST']
-  }
-});
-const PORT = process.env.PORT || 10000;
+const io = socketIo(server);
+const PORT = process.env.PORT || 3000;
 
 // Configurando Mercado Pago com token de maior de idade
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
@@ -21,16 +16,22 @@ mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Adicionado para processar requisições de formulário
+
+// Variável global para armazenar o valor doado
+let donationAmount = 0;
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
 
+  donationAmount = amount; // Armazena o valor da doação para uso posterior
+
   let payment_data = {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications',
+    notification_url: 'https://great-rooster-firmly.ngrok-free.app/notifications',
     payer: {
       first_name: name,
       last_name: 'Lindo',
@@ -57,7 +58,7 @@ app.post('/generate_pix_qr', (req, res) => {
 
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
       } else {
-        res.status(500).send('Erro ao gerar QR Code PIX');
+        res.status(500).send('Erro ao gerar o QR Code PIX');
       }
     }).catch(function (error) {
       console.error('Erro ao criar o pagamento PIX:', error);
@@ -88,7 +89,7 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail, donationAmount } = req.body;
+  const { discordNick, confirmationName, confirmationEmail } = req.body;
 
   if (!discordNick || !confirmationName || !confirmationEmail) {
     res.status(400).send('Todos os campos são obrigatórios.');
@@ -100,15 +101,15 @@ app.post('/send_discord_data', (req, res) => {
     service: 'gmail',
     auth: {
       user: 'leolesane1234@gmail.com', // Seu e-mail
-      pass: 'nnnjrdglimoqnjda' // Sua senha de app (use app passwords para maior segurança)
+      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
     }
   });
 
   let mailOptions = {
     from: 'leolesane1234@gmail.com',
-    to: 'ogustadesiner@gmail.com',
+    to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nick do Discord: ${discordNick}\nNome: ${confirmationName}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount}`
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount.toFixed(2)}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
@@ -124,5 +125,5 @@ app.post('/send_discord_data', (req, res) => {
 
 // Inicializa o servidor
 server.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
