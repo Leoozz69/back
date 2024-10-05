@@ -4,34 +4,30 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
+const cors = require('cors'); // Importando CORS
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
 // Configurando Mercado Pago com token de maior de idade
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
 
-// Middleware para servir arquivos estáticos
+// Middleware para servir arquivos estáticos e JSON
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Adicionado para processar requisições de formulário
-
-// Variável global para armazenar o valor doado
-let donationAmount = 0;
+app.use(cors()); // Habilitando CORS
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
 
-  donationAmount = amount; // Armazena o valor da doação para uso posterior
-
   let payment_data = {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications',
+    notification_url: 'https://back-wag6.onrender.com/notifications', // URL de notificação deve ser sua URL de back-end
     payer: {
       first_name: name,
       last_name: 'Lindo',
@@ -107,9 +103,9 @@ app.post('/send_discord_data', (req, res) => {
 
   let mailOptions = {
     from: 'leolesane1234@gmail.com',
-    to: 'ogustadesigner@gmail.com',
+    to: 'ogustadesiner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount.toFixed(2)}`
+    text: `Nick do Discord: ${discordNick}\nNome: ${confirmationName}\nEmail: ${confirmationEmail}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
