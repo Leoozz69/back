@@ -125,6 +125,13 @@ app.post('/send_discord_data', (req, res) => {
     return;
   }
 
+  // Garantir que os dados da doação estejam disponíveis
+  const { amount } = donationData;
+  if (!amount) {
+    res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
+    return;
+  }
+
   // Configurar transporte de e-mail usando Nodemailer
   let transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -138,7 +145,7 @@ app.post('/send_discord_data', (req, res) => {
     from: 'leolesane1234@gmail.com',
     to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationData.amount.toFixed(2)}`
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${amount.toFixed(2)}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
