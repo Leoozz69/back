@@ -62,34 +62,29 @@ app.post('/generate_pix_qr', (req, res) => {
     });
 });
 
-// Rota para receber notificações do Mercado Pago
+// Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
-  const paymentId = req.body.data && req.body.data.id;
+  const paymentId = req.body.data.id;
 
-  if (paymentId) {
-    // Consultar o pagamento para verificar o status
-    mercadopago.payment.findById(paymentId)
-      .then(response => {
-        const payment = response.body;
+  mercadopago.payment.findById(paymentId)
+    .then(function (response) {
+      const paymentStatus = response.body.status;
 
-        if (payment.status === 'approved') {
-          // Emitir um evento via Socket.IO para informar que o pagamento foi aprovado
-          io.emit('paymentApproved');
-          console.log('Pagamento aprovado:', paymentId);
-        }
+      if (paymentStatus === 'approved') {
+        // Emitir evento para confirmar pagamento
+        io.emit('paymentApproved');
+        console.log('Pagamento aprovado!');
+      }
 
-        res.sendStatus(200);
-      })
-      .catch(error => {
-        console.error('Erro ao consultar pagamento:', error);
-        res.sendStatus(500);
-      });
-  } else {
-    res.sendStatus(400);
-  }
+      res.sendStatus(200);
+    })
+    .catch(function (error) {
+      console.error('Erro ao processar notificação:', error);
+      res.sendStatus(500);
+    });
 });
 
-// Iniciar o servidor
+// Inicializa o servidor
 server.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
