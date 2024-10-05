@@ -15,7 +15,7 @@ mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a
 
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
+app.use(express.json()); // Middleware para interpretar requisições JSON
 app.use(cors()); // Habilitando CORS
 
 // Rota para criar o pagamento e gerar o QR code PIX
@@ -62,29 +62,18 @@ app.post('/generate_pix_qr', (req, res) => {
     });
 });
 
-// Rota para receber notificações de pagamento do Mercado Pago
+// Rota para receber notificações do Mercado Pago
 app.post('/notifications', (req, res) => {
-  const paymentId = req.body.data.id;
-
-  mercadopago.payment.findById(paymentId)
-    .then(function (response) {
-      const paymentStatus = response.body.status;
-
-      if (paymentStatus === 'approved') {
-        // Emitir evento para confirmar pagamento
-        io.emit('paymentApproved');
-        console.log('Pagamento aprovado!');
-      }
-
-      res.sendStatus(200);
-    })
-    .catch(function (error) {
-      console.error('Erro ao processar notificação:', error);
-      res.sendStatus(500);
-    });
+  try {
+    console.log('Notificação recebida:', JSON.stringify(req.body, null, 2));
+    res.sendStatus(200); // Enviar uma resposta 200 para confirmar que a notificação foi recebida
+  } catch (error) {
+    console.error('Erro ao processar notificação:', error);
+    res.sendStatus(500);
+  }
 });
 
-// Inicializa o servidor
+// Iniciar o servidor
 server.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
