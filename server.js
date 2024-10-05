@@ -8,7 +8,7 @@ const nodemailer = require('nodemailer');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
 // Configurando Mercado Pago com token de maior de idade
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
@@ -31,7 +31,7 @@ app.post('/generate_pix_qr', (req, res) => {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications',
+    notification_url: 'https://great-rooster-firmly.ngrok-free.app/notifications',
     payer: {
       first_name: name,
       last_name: 'Lindo',
