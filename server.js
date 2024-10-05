@@ -31,7 +31,7 @@ app.post('/generate_pix_qr', (req, res) => {
     transaction_amount: amount,
     description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://great-rooster-firmly.ngrok-free.app/notifications',
+    notification_url: 'https://back-wag6.onrender.com/notifications',
     payer: {
       first_name: name,
       last_name: 'Lindo',
