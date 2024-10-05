@@ -36,6 +36,8 @@ io.on('connection', (socket) => {
   });
 });
 
+let donationAmount = 0; // Variável para armazenar o valor da doação
+
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
@@ -43,6 +45,8 @@ app.post('/generate_pix_qr', (req, res) => {
   if (!name || !amount) {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
+
+  donationAmount = amount; // Armazenar o valor da doação
 
   let payment_data = {
     transaction_amount: amount,
@@ -133,7 +137,7 @@ app.post('/send_discord_data', (req, res) => {
     from: 'leolesane1234@gmail.com',
     to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}`
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donationAmount.toFixed(2)}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
