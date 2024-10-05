@@ -1,0 +1,14 @@
+{
+  "name": "doacao_app_mercado_pago_pix",
+  "version": "29.0.0",
+  "description": "Landing page para doações com geração de QR Code PIX usando Mercado Pago",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mercadopago": "^1.5.13",
+    "socket.io": "^4.0.0"
+  }
+}
