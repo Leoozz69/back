@@ -6,7 +6,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -38,7 +37,8 @@ io.on('connection', (socket) => {
   });
 });
 
-let donationData = {}; // Variável para armazenar os dados da doação temporariamente
+const fs = require('fs');
+let donationData = {};
 
 // Carregar dados salvos anteriormente (se existirem)
 try {
@@ -47,7 +47,7 @@ try {
   console.log('Dados de doação carregados com sucesso.');
 } catch (err) {
   console.log('Nenhum dado de doação pré-existente encontrado. Iniciando novo armazenamento.');
-}
+} // Variável para armazenar os dados da doação temporariamente
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
@@ -83,6 +83,8 @@ app.post('/generate_pix_qr', (req, res) => {
       const point_of_interaction = response.body.point_of_interaction;
       const transactionId = response.body.id; // Obtém o ID da transação
 
+      console.log('Pagamento criado com sucesso, transactionId:', transactionId); // Log para verificar transactionId
+
       if (point_of_interaction && point_of_interaction.transaction_data) {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
@@ -100,6 +102,8 @@ app.post('/generate_pix_qr', (req, res) => {
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
         console.log('Dados de doação armazenados e salvos para transactionId:', transactionId);
 
+        console.log('Dados de doação armazenados para transactionId:', transactionId); // Log para verificar armazenamento
+
         // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
       } else {
@@ -113,6 +117,8 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
+  console.log('Notificação recebida:', JSON.stringify(req.body, null, 2)); // Log detalhado para depuração
+
   const paymentId = req.body.data && req.body.data.id;
 
   if (!paymentId) {
@@ -120,22 +126,30 @@ app.post('/notifications', (req, res) => {
     return res.sendStatus(400);
   }
 
+  console.log('Pagamento encontrado na notificação, paymentId:', paymentId); // Log para verificar paymentId
+
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
       const transactionId = response.body.id;
 
+      console.log('Detalhes do pagamento encontrados, transactionId:', transactionId, 'status:', paymentStatus); // Log para verificar status e transactionId
+
       if (paymentStatus === 'approved' && donationData[transactionId]) {
+        console.log('Dados da doação disponíveis no momento da aprovação:', donationData[transactionId]);
         // Emitir evento para confirmar pagamento para o cliente correto
         const socketId = donationData[transactionId].socketId;
         io.to(socketId).emit('paymentApproved', donationData[transactionId]);
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
         // Remover a transação da memória após o pagamento ser aprovado
-        delete donationData[transactionId];
+        // delete donationData[transactionId];
         // Atualizar o arquivo após a exclusão
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId);
+        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId); // Temporariamente desativado para verificar sincronia
+        console.log('Dados de doação removidos para transactionId:', transactionId); // Log para verificar remoção
+      } else {
+        console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
       }
 
       res.sendStatus(200);
@@ -150,7 +164,10 @@ app.post('/notifications', (req, res) => {
 app.post('/send_discord_data', (req, res) => {
   const { discordNick, confirmationName, confirmationEmail, transactionId } = req.body;
 
+  console.log('Requisição para enviar dados do Discord recebida, transactionId:', transactionId); // Log para verificar transactionId recebido
+
   if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
+    console.error('Erro: Campos obrigatórios faltando.');
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
@@ -158,6 +175,7 @@ app.post('/send_discord_data', (req, res) => {
   // Garantir que os dados da doação estejam disponíveis
   const donation = donationData[transactionId];
   if (!donation) {
+    console.error('Erro: Valor da doação não encontrado para transactionId:', transactionId);
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
   }
@@ -184,13 +202,9 @@ app.post('/send_discord_data', (req, res) => {
       res.status(500).json({ error: 'Erro ao enviar os dados.' });
     } else {
       console.log('E-mail enviado:', info.response);
-      // Emitir evento para confirmar envio dos dados ao cliente
-      const socketId = donation.socketId;
-      io.to(socketId).emit('discordDataSent', { message: 'Dados enviados com sucesso.' });
       // Somente deletar os dados depois que o e-mail for enviado com sucesso
       delete donationData[transactionId];
-      fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-      console.log('Dados de doação removidos após envio de e-mail para transactionId:', transactionId);
+      console.log('Dados de doação removidos após envio de e-mail para transactionId:', transactionId); // Log para verificar remoção
       res.status(200).json({ message: 'Dados enviados com sucesso.' });
     }
   });
