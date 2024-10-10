@@ -89,7 +89,7 @@ app.post('/generate_pix_qr', (req, res) => {
         donationData[transactionId] = { name, amount, cpf, email, donationId };
 
         // Enviar QR Code base64, código PIX e donationId para ser exibido na página
-        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, donationId });
+        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, donationId, transactionId });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -114,12 +114,12 @@ app.post('/notifications', (req, res) => {
       const transactionId = response.body.id;
 
       // Encontrar o donationId associado ao transactionId
-      const donationId = donationData[transactionId] && donationData[transactionId].donationId;
+      const donation = donationData[transactionId];
 
-      if (paymentStatus === 'approved' && donationId) {
+      if (paymentStatus === 'approved' && donation) {
         // Emitir evento apenas para o cliente específico
-        io.to(donationId).emit('paymentApproved', donationData[transactionId]);
-        console.log('Pagamento aprovado! Evento emitido para:', donationId);
+        io.to(donation.donationId).emit('paymentApproved', { ...donation, transactionId });
+        console.log('Pagamento aprovado! Evento emitido para:', donation.donationId);
       }
 
       res.sendStatus(200);
