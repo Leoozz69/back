@@ -122,13 +122,14 @@ app.post('/notifications', (req, res) => {
       console.log('Detalhes do pagamento encontrados, transactionId:', transactionId, 'status:', paymentStatus); // Log para verificar status e transactionId
 
       if (paymentStatus === 'approved' && donationData[transactionId]) {
+        console.log('Dados da doação disponíveis no momento da aprovação:', donationData[transactionId]);
         // Emitir evento para confirmar pagamento para o cliente correto
         const socketId = donationData[transactionId].socketId;
         io.to(socketId).emit('paymentApproved', donationData[transactionId]);
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
         // Remover a transação da memória após o pagamento ser aprovado
-        delete donationData[transactionId];
+        // delete donationData[transactionId]; // Temporariamente desativado para verificar sincronia
         console.log('Dados de doação removidos para transactionId:', transactionId); // Log para verificar remoção
       } else {
         console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
