@@ -44,6 +44,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// Objeto para armazenar os dados das doações por transactionId
+let donationData = {};
+
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
   const { name, amount, cpf, email } = req.body;
@@ -84,6 +87,9 @@ app.post('/generate_pix_qr', (req, res) => {
       if (point_of_interaction && point_of_interaction.transaction_data) {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
+
+        // Armazenar os dados da doação
+        donationData[transactionId] = { name, amount, cpf, email };
 
         // Enviar QR Code base64, o código PIX e o identificador da transação para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
@@ -126,16 +132,16 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail } = req.body;
+  const { discordNick, confirmationName, confirmationEmail, transactionId } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail) {
+  if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = req.body;
-  if (!amount) {
+  const donation = donationData[transactionId];
+  if (!donation) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
   }
@@ -153,7 +159,7 @@ app.post('/send_discord_data', (req, res) => {
     from: 'leolesane1234@gmail.com',
     to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${amount.toFixed(2)}`
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donation.amount.toFixed(2)}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
