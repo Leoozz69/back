@@ -78,6 +78,9 @@ app.post('/generate_pix_qr', (req, res) => {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
 
+        // Salve o paymentId na donationData para ser usado posteriormente
+        donationData[socketId].paymentId = response.body.id;
+
         // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
       } else {
@@ -97,6 +100,9 @@ app.post('/notifications', (req, res) => {
     console.error('Erro: paymentId não encontrado na notificação.');
     return res.sendStatus(400);
   }
+
+  // Log para verificar a notificação recebida
+  console.log('Notificação recebida:', req.body);
 
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
@@ -131,7 +137,7 @@ app.post('/send_discord_data', (req, res) => {
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = donationData;
+  const { amount } = donationData[req.body.socketId] || {};
   if (!amount) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
