@@ -40,14 +40,14 @@ let donationData = {}; // Variável para armazenar os dados da doação
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, cpf, email, socketId } = req.body;
+  const { name, amount, cpf, email } = req.body;
 
   if (!name || !amount) {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
 
   // Armazenar os dados da doação
-  donationData[socketId] = { name, amount, cpf, email };
+  donationData = { name, amount, cpf, email };
 
   let payment_data = {
     transaction_amount: amount,
@@ -78,9 +78,6 @@ app.post('/generate_pix_qr', (req, res) => {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
 
-        // Salve o paymentId na donationData para ser usado posteriormente
-        donationData[socketId].paymentId = response.body.id;
-
         // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
       } else {
@@ -94,30 +91,21 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
-  const paymentId = req.body.data ? req.body.data.id : null;
+  const paymentId = req.body.data && req.body.data.id;
 
   if (!paymentId) {
     console.error('Erro: paymentId não encontrado na notificação.');
-    console.log('Notificação recebida:', req.body);
     return res.sendStatus(400);
   }
-
-  // Log para verificar a notificação recebida
-  console.log('Notificação recebida:', req.body);
 
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
 
       if (paymentStatus === 'approved') {
-        // Encontrar o socket ID associado ao paymentId
-        const socketId = Object.keys(donationData).find(key => donationData[key].paymentId === paymentId);
-
-        if (socketId) {
-          // Emitir evento para o cliente específico
-          io.to(socketId).emit('paymentApproved', donationData[socketId]);
-          console.log('Pagamento aprovado! Evento emitido para o cliente:', socketId);
-        }
+        // Emitir evento para confirmar pagamento
+        io.emit('paymentApproved', donationData); // Emitir os dados da doação também
+        console.log('Pagamento aprovado! Evento emitido.');
       }
 
       res.sendStatus(200);
@@ -130,15 +118,15 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail, socketId } = req.body;
+  const { discordNick, confirmationName, confirmationEmail } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail || !socketId) {
+  if (!discordNick || !confirmationName || !confirmationEmail) {
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = donationData[socketId] || {};
+  const { amount } = donationData;
   if (!amount) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
