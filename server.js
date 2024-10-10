@@ -40,14 +40,14 @@ let donationData = {}; // Variável para armazenar os dados da doação
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, cpf, email } = req.body;
+  const { name, amount, cpf, email, socketId } = req.body;
 
   if (!name || !amount) {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
 
   // Armazenar os dados da doação
-  donationData = { name, amount, cpf, email };
+  donationData[socketId] = { name, amount, cpf, email };
 
   let payment_data = {
     transaction_amount: amount,
@@ -103,9 +103,14 @@ app.post('/notifications', (req, res) => {
       const paymentStatus = response.body.status;
 
       if (paymentStatus === 'approved') {
-        // Emitir evento para confirmar pagamento
-        io.emit('paymentApproved', donationData); // Emitir os dados da doação também
-        console.log('Pagamento aprovado! Evento emitido.');
+        // Encontrar o socket ID associado ao paymentId
+        const socketId = Object.keys(donationData).find(key => donationData[key].paymentId === paymentId);
+
+        if (socketId) {
+          // Emitir evento para o cliente específico
+          io.to(socketId).emit('paymentApproved', donationData[socketId]);
+          console.log('Pagamento aprovado! Evento emitido para o cliente:', socketId);
+        }
       }
 
       res.sendStatus(200);
