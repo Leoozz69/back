@@ -167,6 +167,8 @@ app.post('/send_discord_data', (req, res) => {
       res.status(500).json({ error: 'Erro ao enviar os dados.' });
     } else {
       console.log('E-mail enviado:', info.response);
+      // Somente deletar os dados depois que o e-mail for enviado com sucesso
+      delete donationData[transactionId];
       res.status(200).json({ message: 'Dados enviados com sucesso.' });
     }
   });
