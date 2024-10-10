@@ -16,8 +16,6 @@ const io = socketIo(server, {
 });
 const PORT = process.env.PORT || 10000;
 
-let donations = {}; // Objeto para armazenar os dados das doacoes, incluindo o socketId e o transactionId
-
 // Configurando Mercado Pago com o token de acesso
 mercadopago.configurations.setAccessToken('APP_USR-6293224342595769-100422-59d0a4c711e8339398460601ef894665-558785318');
 
@@ -30,37 +28,39 @@ app.use(cors({
   allowedHeaders: ['Content-Type']
 }));
 
-// Modificacao no evento de conexão
+// Configuração do Socket.IO para verificar conexões
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
-
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
-    // Remova os dados de doacao associados ao cliente desconectado
-    delete donations[socket.id];
   });
 });
 
+let donationData = {}; // Variável para armazenar os dados da doação
+
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, socketId } = req.body;
+  const { name, amount, cpf, email } = req.body;
 
-  if (!name || !amount || !socketId) {
-    return res.status(400).send('Nome, valor da doacao e ID do socket são obrigatórios.');
+  if (!name || !amount) {
+    return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
+
+  // Armazenar os dados da doação
+  donationData = { name, amount, cpf, email };
 
   let payment_data = {
     transaction_amount: amount,
-    description: 'Doacao para o projeto',
+    description: 'Doação para o projeto',
     payment_method_id: 'pix',
-    notification_url: 'https://back-wag6.onrender.com/notifications',
+    notification_url: 'https://back-wag6.onrender.com/notifications', // URL de notificação
     payer: {
       first_name: name,
       last_name: 'Lindo',
-      email: 'ogustadesigner@gmail.com',
+      email: email || 'ogustadesigner@gmail.com',
       identification: {
         type: 'CPF',
-        number: '56402807869'
+        number: cpf || '56402807869'
       },
       address: {
         zip_code: '12345678',
@@ -77,16 +77,6 @@ app.post('/generate_pix_qr', (req, res) => {
       if (point_of_interaction && point_of_interaction.transaction_data) {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
-        const transactionId = response.body.id;
-
-        // Salvar os dados da doacao associando ao cliente (socketId) e ao transactionId
-        donations[transactionId] = {
-          socketId,
-          name,
-          amount,
-          qrCodeBase64,
-          pixCode
-        };
 
         // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
@@ -99,7 +89,7 @@ app.post('/generate_pix_qr', (req, res) => {
     });
 });
 
-// Rota para receber notificacoes de pagamento do Mercado Pago
+// Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
   const paymentId = req.body.data && req.body.data.id;
 
@@ -113,17 +103,9 @@ app.post('/notifications', (req, res) => {
       const paymentStatus = response.body.status;
 
       if (paymentStatus === 'approved') {
-        // Verificar se existe uma doacao associada ao paymentId
-        const donation = donations[paymentId];
-        if (donation) {
-          const { socketId } = donation;
-
-          // Emitir evento para o cliente especifico
-          io.to(socketId).emit('paymentApproved', donation);
-          console.log('Pagamento aprovado! Evento emitido para:', socketId);
-        } else {
-          console.error('Erro: Doacao nao encontrada para o paymentId:', paymentId);
-        }
+        // Emitir evento para confirmar pagamento
+        io.emit('paymentApproved', donationData); // Emitir os dados da doação também
+        console.log('Pagamento aprovado! Evento emitido.');
       }
 
       res.sendStatus(200);
@@ -132,6 +114,49 @@ app.post('/notifications', (req, res) => {
       console.error('Erro ao processar notificação:', error);
       res.sendStatus(500);
     });
+});
+
+// Rota para processar o envio dos dados do Discord
+app.post('/send_discord_data', (req, res) => {
+  const { discordNick, confirmationName, confirmationEmail } = req.body;
+
+  if (!discordNick || !confirmationName || !confirmationEmail) {
+    res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+    return;
+  }
+
+  // Garantir que os dados da doação estejam disponíveis
+  const { amount } = donationData;
+  if (!amount) {
+    res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
+    return;
+  }
+
+  // Configurar transporte de e-mail usando Nodemailer
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'leolesane1234@gmail.com', // Seu e-mail
+      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
+    }
+  });
+
+  let mailOptions = {
+    from: 'leolesane1234@gmail.com',
+    to: 'ogustadesigner@gmail.com',
+    subject: 'Dados do Discord recebidos',
+    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${amount.toFixed(2)}`
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Erro ao enviar e-mail:', error);
+      res.status(500).json({ error: 'Erro ao enviar os dados.' });
+    } else {
+      console.log('E-mail enviado:', info.response);
+      res.status(200).json({ message: 'Dados enviados com sucesso.' });
+    }
+  });
 });
 
 // Inicializa o servidor
