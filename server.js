@@ -139,11 +139,9 @@ app.post('/notifications', (req, res) => {
         io.to(socketId).emit('paymentApproved', donationData[transactionId]);
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
-        // Remover a transação da memória após o pagamento ser aprovado
-        delete donationData[transactionId];
-        // Atualizar o arquivo após a exclusão
+        // Atualizar o arquivo após a aprovação do pagamento
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId);
+        console.log('Dados de doação atualizados no arquivo para transactionId:', transactionId);
       } else {
         console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
       }
