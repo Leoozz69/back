@@ -91,7 +91,11 @@ app.post('/generate_pix_qr', (req, res) => {
 
         // Armazenar os dados da doação incluindo o transactionId e socket.id
         donationData[transactionId] = {
-          $1
+          name,
+          amount,
+          cpf,
+          email,
+          socketId: req.body.socketId // Recebe o socketId do cliente
         };
 
         // Salvar dados no arquivo
