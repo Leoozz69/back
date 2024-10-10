@@ -99,6 +99,8 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
+  console.log('Notificação recebida:', JSON.stringify(req.body, null, 2)); // Log detalhado para depuração
+
   const paymentId = req.body.data && req.body.data.id;
 
   if (!paymentId) {
