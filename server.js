@@ -1,4 +1,3 @@
-// Novo server.js com melhorias para garantir que cada pagamento seja identificado unicamente
 const express = require('express');
 const mercadopago = require('mercadopago');
 const path = require('path');
@@ -102,10 +101,8 @@ app.post('/generate_pix_qr', (req, res) => {
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
         console.log('Dados de doação armazenados e salvos para transactionId:', transactionId);
 
-        console.log('Dados de doação armazenados para transactionId:', transactionId); // Log para verificar armazenamento
-
         // Enviar QR Code base64 e o código PIX para ser exibido na página
-        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
+        res.status(200).json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -143,11 +140,10 @@ app.post('/notifications', (req, res) => {
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
         // Remover a transação da memória após o pagamento ser aprovado
-        // delete donationData[transactionId];
+        delete donationData[transactionId];
         // Atualizar o arquivo após a exclusão
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId); // Temporariamente desativado para verificar sincronia
-        console.log('Dados de doação removidos para transactionId:', transactionId); // Log para verificar remoção
+        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId);
       } else {
         console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
       }
@@ -168,16 +164,14 @@ app.post('/send_discord_data', (req, res) => {
 
   if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
     console.error('Erro: Campos obrigatórios faltando.');
-    res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
-    return;
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
   }
 
   // Garantir que os dados da doação estejam disponíveis
   const donation = donationData[transactionId];
   if (!donation) {
     console.error('Erro: Valor da doação não encontrado para transactionId:', transactionId);
-    res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
-    return;
+    return res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
   }
 
   // Configurar transporte de e-mail usando Nodemailer
@@ -199,13 +193,14 @@ app.post('/send_discord_data', (req, res) => {
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.error('Erro ao enviar e-mail:', error);
-      res.status(500).json({ error: 'Erro ao enviar os dados.' });
+      return res.status(500).json({ error: 'Erro ao enviar os dados.' });
     } else {
       console.log('E-mail enviado:', info.response);
       // Somente deletar os dados depois que o e-mail for enviado com sucesso
       delete donationData[transactionId];
       console.log('Dados de doação removidos após envio de e-mail para transactionId:', transactionId); // Log para verificar remoção
-      res.status(200).json({ message: 'Dados enviados com sucesso.' });
+      fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
+      return res.status(200).json({ message: 'Dados enviados com sucesso.' });
     }
   });
 });
