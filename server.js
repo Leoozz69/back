@@ -5,6 +5,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,28 +29,30 @@ app.use(cors({
   allowedHeaders: ['Content-Type']
 }));
 
-// Variável para armazenar os dados de cada cliente
-let donationData = {};
-
 // Configuração do Socket.IO para verificar conexões
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
-
+  socket.on('joinRoom', (donationId) => {
+    socket.join(donationId);
+    console.log(`Cliente ${socket.id} entrou na sala: ${donationId}`);
+  });
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
   });
 });
 
+let donationData = {}; // Variável para armazenar os dados da doação
+
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, cpf, email, clientId } = req.body;
+  const { name, amount, cpf, email } = req.body;
 
-  if (!name || !amount || !clientId) {
-    return res.status(400).send('Nome, valor da doação e ID do cliente são obrigatórios.');
+  if (!name || !amount) {
+    return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
 
-  // Armazenar os dados da doação, associando ao cliente
-  donationData[clientId] = { name, amount, cpf, email };
+  // Gerar um identificador único para a doação
+  const donationId = uuidv4();
 
   let payment_data = {
     transaction_amount: amount,
@@ -69,7 +72,8 @@ app.post('/generate_pix_qr', (req, res) => {
         street_name: 'Rua Exemplo',
         street_number: '123'
       }
-    }
+    },
+    external_reference: donationId // Associar o donationId como referência externa
   };
 
   mercadopago.payment.create(payment_data)
@@ -79,9 +83,13 @@ app.post('/generate_pix_qr', (req, res) => {
       if (point_of_interaction && point_of_interaction.transaction_data) {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
+        const transactionId = response.body.id;
 
-        // Enviar QR Code base64 e o código PIX para o cliente específico
-        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, clientId: clientId });
+        // Armazenar os dados da doação, incluindo transactionId
+        donationData[transactionId] = { name, amount, cpf, email, donationId };
+
+        // Enviar QR Code base64, código PIX e donationId para ser exibido na página
+        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, donationId });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -103,18 +111,15 @@ app.post('/notifications', (req, res) => {
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
+      const transactionId = response.body.id;
 
-      if (paymentStatus === 'approved') {
-        // Identificar qual cliente gerou esse pagamento
-        const { clientId } = donationData;
+      // Encontrar o donationId associado ao transactionId
+      const donationId = donationData[transactionId] && donationData[transactionId].donationId;
 
-        // Emitir evento de pagamento aprovado apenas para o cliente correto
-        if (clientId && donationData[clientId]) {
-          io.to(clientId).emit('paymentApproved', donationData[clientId]); 
-          console.log(`Pagamento aprovado! Evento emitido para cliente: ${clientId}`);
-        } else {
-          console.error('Erro: Cliente não encontrado para esse pagamento.');
-        }
+      if (paymentStatus === 'approved' && donationId) {
+        // Emitir evento apenas para o cliente específico
+        io.to(donationId).emit('paymentApproved', donationData[transactionId]);
+        console.log('Pagamento aprovado! Evento emitido para:', donationId);
       }
 
       res.sendStatus(200);
@@ -135,7 +140,7 @@ app.post('/send_discord_data', (req, res) => {
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = donationData;
+  const { amount } = donationData[req.body.transactionId] || {};
   if (!amount) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
