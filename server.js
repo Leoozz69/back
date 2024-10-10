@@ -132,26 +132,28 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail } = req.body;
+  const { discordNick, confirmationName, confirmationEmail, transactionId } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail) {
+  if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = donationData[req.body.transactionId] || {};
-  if (!amount) {
+  const donation = donationData[transactionId];
+  if (!donation) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
   }
+
+  const { amount } = donation;
 
   // Configurar transporte de e-mail usando Nodemailer
   let transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: 'leolesane1234@gmail.com', // Seu e-mail
-      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
+      pass: 'sua-senha-de-aplicativo-aqui' // Utilize a senha de aplicativo do Gmail para maior segurança
     }
   });
 
