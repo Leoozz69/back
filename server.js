@@ -37,7 +37,17 @@ io.on('connection', (socket) => {
   });
 });
 
-let donationData = {}; // Variável para armazenar os dados da doação temporariamente
+const fs = require('fs');
+let donationData = {};
+
+// Carregar dados salvos anteriormente (se existirem)
+try {
+  const rawData = fs.readFileSync('donationData.json');
+  donationData = JSON.parse(rawData);
+  console.log('Dados de doação carregados com sucesso.');
+} catch (err) {
+  console.log('Nenhum dado de doação pré-existente encontrado. Iniciando novo armazenamento.');
+} // Variável para armazenar os dados da doação temporariamente
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
@@ -81,12 +91,12 @@ app.post('/generate_pix_qr', (req, res) => {
 
         // Armazenar os dados da doação incluindo o transactionId e socket.id
         donationData[transactionId] = {
-          name,
-          amount,
-          cpf,
-          email,
-          socketId: req.body.socketId // Recebe o socketId do cliente
+          $1
         };
+
+        // Salvar dados no arquivo
+        fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
+        console.log('Dados de doação armazenados e salvos para transactionId:', transactionId);
 
         console.log('Dados de doação armazenados para transactionId:', transactionId); // Log para verificar armazenamento
 
@@ -129,7 +139,10 @@ app.post('/notifications', (req, res) => {
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
         // Remover a transação da memória após o pagamento ser aprovado
-        // delete donationData[transactionId]; // Temporariamente desativado para verificar sincronia
+        // delete donationData[transactionId];
+        // Atualizar o arquivo após a exclusão
+        fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
+        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId); // Temporariamente desativado para verificar sincronia
         console.log('Dados de doação removidos para transactionId:', transactionId); // Log para verificar remoção
       } else {
         console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
