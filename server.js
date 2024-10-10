@@ -5,7 +5,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
@@ -32,10 +31,6 @@ app.use(cors({
 // Configuração do Socket.IO para verificar conexões
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
-  socket.on('joinRoom', (donationId) => {
-    socket.join(donationId);
-    console.log(`Cliente ${socket.id} entrou na sala: ${donationId}`);
-  });
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
   });
@@ -51,8 +46,8 @@ app.post('/generate_pix_qr', (req, res) => {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
 
-  // Gerar um identificador único para a doação
-  const donationId = uuidv4();
+  // Armazenar os dados da doação
+  donationData = { name, amount, cpf, email };
 
   let payment_data = {
     transaction_amount: amount,
@@ -72,8 +67,7 @@ app.post('/generate_pix_qr', (req, res) => {
         street_name: 'Rua Exemplo',
         street_number: '123'
       }
-    },
-    external_reference: donationId // Associar o donationId como referência externa
+    }
   };
 
   mercadopago.payment.create(payment_data)
@@ -83,13 +77,9 @@ app.post('/generate_pix_qr', (req, res) => {
       if (point_of_interaction && point_of_interaction.transaction_data) {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
-        const transactionId = response.body.id;
 
-        // Armazenar os dados da doação, incluindo transactionId
-        donationData[transactionId] = { name, amount, cpf, email, donationId };
-
-        // Enviar QR Code base64, código PIX e donationId para ser exibido na página
-        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, donationId, transactionId });
+        // Enviar QR Code base64 e o código PIX para ser exibido na página
+        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -111,15 +101,11 @@ app.post('/notifications', (req, res) => {
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
-      const transactionId = response.body.id;
 
-      // Encontrar o donationId associado ao transactionId
-      const donation = donationData[transactionId];
-
-      if (paymentStatus === 'approved' && donation) {
-        // Emitir evento apenas para o cliente específico
-        io.to(donation.donationId).emit('paymentApproved', { ...donation, transactionId });
-        console.log('Pagamento aprovado! Evento emitido para:', donation.donationId);
+      if (paymentStatus === 'approved') {
+        // Emitir evento para confirmar pagamento
+        io.emit('paymentApproved', donationData); // Emitir os dados da doação também
+        console.log('Pagamento aprovado! Evento emitido.');
       }
 
       res.sendStatus(200);
@@ -132,28 +118,26 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail, transactionId } = req.body;
+  const { discordNick, confirmationName, confirmationEmail } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
+  if (!discordNick || !confirmationName || !confirmationEmail) {
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const donation = donationData[transactionId];
-  if (!donation) {
+  const { amount } = donationData;
+  if (!amount) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
   }
-
-  const { amount } = donation;
 
   // Configurar transporte de e-mail usando Nodemailer
   let transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: 'leolesane1234@gmail.com', // Seu e-mail
-      pass: 'sua-senha-de-aplicativo-aqui' // Utilize a senha de aplicativo do Gmail para maior segurança
+      pass: 'nnnj rdgl imoq njda' // Sua senha (use app passwords para maior segurança)
     }
   });
 

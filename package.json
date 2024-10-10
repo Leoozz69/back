@@ -1,7 +1,7 @@
 {
   "name": "doacao_app",
   "version": "1.0.0",
-  "description": "Aplicação de doação via PIX",
+  "description": "Aplica\u00e7\u00e3o de doa\u00e7\u00e3o via PIX",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,7 +11,6 @@
     "mercadopago": "^1.5.10",
     "nodemailer": "^6.9.15",
     "socket.io": "^4.0.1",
-    "cors": "^2.8.5",
-    "uuid": "^8.3.2"
+    "cors": "^2.8.5"
   }
 }
