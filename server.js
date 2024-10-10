@@ -73,6 +73,8 @@ app.post('/generate_pix_qr', (req, res) => {
       const point_of_interaction = response.body.point_of_interaction;
       const transactionId = response.body.id; // Obtém o ID da transação
 
+      console.log('Pagamento criado com sucesso, transactionId:', transactionId); // Log para verificar transactionId
+
       if (point_of_interaction && point_of_interaction.transaction_data) {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
@@ -85,6 +87,8 @@ app.post('/generate_pix_qr', (req, res) => {
           email,
           socketId: req.body.socketId // Recebe o socketId do cliente
         };
+
+        console.log('Dados de doação armazenados para transactionId:', transactionId); // Log para verificar armazenamento
 
         // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
@@ -108,10 +112,14 @@ app.post('/notifications', (req, res) => {
     return res.sendStatus(400);
   }
 
+  console.log('Pagamento encontrado na notificação, paymentId:', paymentId); // Log para verificar paymentId
+
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
       const transactionId = response.body.id;
+
+      console.log('Detalhes do pagamento encontrados, transactionId:', transactionId, 'status:', paymentStatus); // Log para verificar status e transactionId
 
       if (paymentStatus === 'approved' && donationData[transactionId]) {
         // Emitir evento para confirmar pagamento para o cliente correto
@@ -121,6 +129,9 @@ app.post('/notifications', (req, res) => {
 
         // Remover a transação da memória após o pagamento ser aprovado
         delete donationData[transactionId];
+        console.log('Dados de doação removidos para transactionId:', transactionId); // Log para verificar remoção
+      } else {
+        console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
       }
 
       res.sendStatus(200);
@@ -135,7 +146,10 @@ app.post('/notifications', (req, res) => {
 app.post('/send_discord_data', (req, res) => {
   const { discordNick, confirmationName, confirmationEmail, transactionId } = req.body;
 
+  console.log('Requisição para enviar dados do Discord recebida, transactionId:', transactionId); // Log para verificar transactionId recebido
+
   if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
+    console.error('Erro: Campos obrigatórios faltando.');
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
@@ -143,6 +157,7 @@ app.post('/send_discord_data', (req, res) => {
   // Garantir que os dados da doação estejam disponíveis
   const donation = donationData[transactionId];
   if (!donation) {
+    console.error('Erro: Valor da doação não encontrado para transactionId:', transactionId);
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
   }
@@ -171,6 +186,7 @@ app.post('/send_discord_data', (req, res) => {
       console.log('E-mail enviado:', info.response);
       // Somente deletar os dados depois que o e-mail for enviado com sucesso
       delete donationData[transactionId];
+      console.log('Dados de doação removidos após envio de e-mail para transactionId:', transactionId); // Log para verificar remoção
       res.status(200).json({ message: 'Dados enviados com sucesso.' });
     }
   });
