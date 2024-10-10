@@ -1,3 +1,4 @@
+// Novo server.js com melhorias para garantir que cada pagamento seja identificado unicamente
 const express = require('express');
 const mercadopago = require('mercadopago');
 const path = require('path');
@@ -50,7 +51,7 @@ try {
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, cpf, email } = req.body;
+  const { name, amount, cpf, email, socketId } = req.body;
 
   if (!name || !amount) {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
@@ -94,7 +95,7 @@ app.post('/generate_pix_qr', (req, res) => {
           amount,
           cpf,
           email,
-          socketId: req.body.socketId // Recebe o socketId do cliente
+          socketId
         };
 
         // Salvar dados no arquivo
@@ -102,7 +103,7 @@ app.post('/generate_pix_qr', (req, res) => {
         console.log('Dados de doação armazenados e salvos para transactionId:', transactionId);
 
         // Enviar QR Code base64 e o código PIX para ser exibido na página
-        res.status(200).json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
+        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -136,12 +137,14 @@ app.post('/notifications', (req, res) => {
         console.log('Dados da doação disponíveis no momento da aprovação:', donationData[transactionId]);
         // Emitir evento para confirmar pagamento para o cliente correto
         const socketId = donationData[transactionId].socketId;
-        io.to(socketId).emit('paymentApproved', donationData[transactionId]);
+        io.to(socketId).emit('paymentApproved', { transactionId });
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
-        // Atualizar o arquivo após a aprovação do pagamento
+        // Remover a transação da memória após o pagamento ser aprovado
+        delete donationData[transactionId];
+        // Atualizar o arquivo após a exclusão
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-        console.log('Dados de doação atualizados no arquivo para transactionId:', transactionId);
+        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId);
       } else {
         console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
       }
@@ -162,14 +165,16 @@ app.post('/send_discord_data', (req, res) => {
 
   if (!discordNick || !confirmationName || !confirmationEmail || !transactionId) {
     console.error('Erro: Campos obrigatórios faltando.');
-    return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+    res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+    return;
   }
 
   // Garantir que os dados da doação estejam disponíveis
   const donation = donationData[transactionId];
   if (!donation) {
     console.error('Erro: Valor da doação não encontrado para transactionId:', transactionId);
-    return res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
+    res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
+    return;
   }
 
   // Configurar transporte de e-mail usando Nodemailer
@@ -191,14 +196,13 @@ app.post('/send_discord_data', (req, res) => {
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.error('Erro ao enviar e-mail:', error);
-      return res.status(500).json({ error: 'Erro ao enviar os dados.' });
+      res.status(500).json({ error: 'Erro ao enviar os dados.' });
     } else {
       console.log('E-mail enviado:', info.response);
       // Somente deletar os dados depois que o e-mail for enviado com sucesso
       delete donationData[transactionId];
       console.log('Dados de doação removidos após envio de e-mail para transactionId:', transactionId); // Log para verificar remoção
-      fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-      return res.status(200).json({ message: 'Dados enviados com sucesso.' });
+      res.status(200).json({ message: 'Dados enviados com sucesso.' });
     }
   });
 });
