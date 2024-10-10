@@ -51,7 +51,7 @@ try {
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, cpf, email, socketId } = req.body;
+  const { name, amount, cpf, email } = req.body;
 
   if (!name || !amount) {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
@@ -95,12 +95,14 @@ app.post('/generate_pix_qr', (req, res) => {
           amount,
           cpf,
           email,
-          socketId
+          socketId: req.body.socketId // Recebe o socketId do cliente
         };
 
         // Salvar dados no arquivo
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
         console.log('Dados de doação armazenados e salvos para transactionId:', transactionId);
+
+        console.log('Dados de doação armazenados para transactionId:', transactionId); // Log para verificar armazenamento
 
         // Enviar QR Code base64 e o código PIX para ser exibido na página
         res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
@@ -137,14 +139,15 @@ app.post('/notifications', (req, res) => {
         console.log('Dados da doação disponíveis no momento da aprovação:', donationData[transactionId]);
         // Emitir evento para confirmar pagamento para o cliente correto
         const socketId = donationData[transactionId].socketId;
-        io.to(socketId).emit('paymentApproved', { transactionId });
+        io.to(socketId).emit('paymentApproved', donationData[transactionId]);
         console.log('Pagamento aprovado! Evento emitido para:', socketId);
 
         // Remover a transação da memória após o pagamento ser aprovado
-        delete donationData[transactionId];
+        // delete donationData[transactionId];
         // Atualizar o arquivo após a exclusão
         fs.writeFileSync('donationData.json', JSON.stringify(donationData, null, 2));
-        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId);
+        console.log('Dados de doação removidos e atualizados no arquivo para transactionId:', transactionId); // Temporariamente desativado para verificar sincronia
+        console.log('Dados de doação removidos para transactionId:', transactionId); // Log para verificar remoção
       } else {
         console.warn('Pagamento não aprovado ou transactionId não encontrado em donationData.');
       }
@@ -190,7 +193,7 @@ app.post('/send_discord_data', (req, res) => {
     from: 'leolesane1234@gmail.com',
     to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donation.amount.toFixed(2)}`
+    text: Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donation.amount.toFixed(2)}
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
@@ -209,5 +212,5 @@ app.post('/send_discord_data', (req, res) => {
 
 // Inicializa o servidor
 server.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(Servidor rodando em http://localhost:${PORT});
 });
