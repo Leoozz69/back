@@ -193,7 +193,7 @@ app.post('/send_discord_data', (req, res) => {
     from: 'leolesane1234@gmail.com',
     to: 'ogustadesigner@gmail.com',
     subject: 'Dados do Discord recebidos',
-    text: Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donation.amount.toFixed(2)}
+ text: `Nome: ${confirmationName}\nNick do Discord: ${discordNick}\nEmail: ${confirmationEmail}\nValor doado: R$${donation.amount.toFixed(2)}`
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
