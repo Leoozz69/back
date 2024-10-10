@@ -28,26 +28,28 @@ app.use(cors({
   allowedHeaders: ['Content-Type']
 }));
 
+// Variável para armazenar os dados de cada cliente
+let donationData = {};
+
 // Configuração do Socket.IO para verificar conexões
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
+
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
   });
 });
 
-let donationData = {}; // Variável para armazenar os dados da doação
-
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
-  const { name, amount, cpf, email } = req.body;
+  const { name, amount, cpf, email, clientId } = req.body;
 
-  if (!name || !amount) {
-    return res.status(400).send('Nome e valor da doação são obrigatórios.');
+  if (!name || !amount || !clientId) {
+    return res.status(400).send('Nome, valor da doação e ID do cliente são obrigatórios.');
   }
 
-  // Armazenar os dados da doação
-  donationData = { name, amount, cpf, email };
+  // Armazenar os dados da doação, associando ao cliente
+  donationData[clientId] = { name, amount, cpf, email };
 
   let payment_data = {
     transaction_amount: amount,
@@ -78,8 +80,8 @@ app.post('/generate_pix_qr', (req, res) => {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
 
-        // Enviar QR Code base64 e o código PIX para ser exibido na página
-        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
+        // Enviar QR Code base64 e o código PIX para o cliente específico
+        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, clientId: clientId });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -103,9 +105,16 @@ app.post('/notifications', (req, res) => {
       const paymentStatus = response.body.status;
 
       if (paymentStatus === 'approved') {
-        // Emitir evento para confirmar pagamento
-        io.emit('paymentApproved', donationData); // Emitir os dados da doação também
-        console.log('Pagamento aprovado! Evento emitido.');
+        // Identificar qual cliente gerou esse pagamento
+        const { clientId } = donationData;
+
+        // Emitir evento de pagamento aprovado apenas para o cliente correto
+        if (clientId && donationData[clientId]) {
+          io.to(clientId).emit('paymentApproved', donationData[clientId]); 
+          console.log(`Pagamento aprovado! Evento emitido para cliente: ${clientId}`);
+        } else {
+          console.error('Erro: Cliente não encontrado para esse pagamento.');
+        }
       }
 
       res.sendStatus(200);
