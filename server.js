@@ -212,5 +212,5 @@ app.post('/send_discord_data', (req, res) => {
 
 // Inicializa o servidor
 server.listen(PORT, () => {
-  console.log(Servidor rodando em http://localhost:${PORT});
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
