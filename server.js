@@ -5,6 +5,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const { v4: uuidv4 } = require('uuid'); // Para gerar identificadores únicos
 
 const app = express();
 const server = http.createServer(app);
@@ -31,12 +32,17 @@ app.use(cors({
 // Configuração do Socket.IO para verificar conexões
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
+  
+  // Cliente se une a uma sala específica com transactionId
+  socket.on('joinTransactionRoom', (transactionId) => {
+    socket.join(transactionId); // Cliente entra na "sala" com o identificador da transação
+    console.log(`Cliente ${socket.id} entrou na sala ${transactionId}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
   });
 });
-
-let donationData = {}; // Variável para armazenar os dados da doação
 
 // Rota para criar o pagamento e gerar o QR code PIX
 app.post('/generate_pix_qr', (req, res) => {
@@ -46,8 +52,8 @@ app.post('/generate_pix_qr', (req, res) => {
     return res.status(400).send('Nome e valor da doação são obrigatórios.');
   }
 
-  // Armazenar os dados da doação
-  donationData = { name, amount, cpf, email };
+  // Gerar um identificador único para a transação
+  const transactionId = uuidv4();
 
   let payment_data = {
     transaction_amount: amount,
@@ -67,7 +73,8 @@ app.post('/generate_pix_qr', (req, res) => {
         street_name: 'Rua Exemplo',
         street_number: '123'
       }
-    }
+    },
+    external_reference: transactionId // Adiciona o transactionId como external_reference
   };
 
   mercadopago.payment.create(payment_data)
@@ -78,8 +85,8 @@ app.post('/generate_pix_qr', (req, res) => {
         const qrCodeBase64 = point_of_interaction.transaction_data.qr_code_base64;
         const pixCode = point_of_interaction.transaction_data.qr_code;
 
-        // Enviar QR Code base64 e o código PIX para ser exibido na página
-        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode });
+        // Enviar QR Code base64, o código PIX e o identificador da transação para ser exibido na página
+        res.json({ qr_code_base64: qrCodeBase64, pix_code: pixCode, transactionId });
       } else {
         res.status(500).send('Erro ao gerar o QR Code PIX');
       }
@@ -101,11 +108,12 @@ app.post('/notifications', (req, res) => {
   mercadopago.payment.findById(paymentId)
     .then(function (response) {
       const paymentStatus = response.body.status;
+      const transactionId = response.body.external_reference; // O transactionId precisa ser armazenado e referenciado
 
-      if (paymentStatus === 'approved') {
-        // Emitir evento para confirmar pagamento
-        io.emit('paymentApproved', donationData); // Emitir os dados da doação também
-        console.log('Pagamento aprovado! Evento emitido.');
+      if (paymentStatus === 'approved' && transactionId) {
+        // Emitir evento para confirmar pagamento apenas para a sala específica
+        io.to(transactionId).emit('paymentApproved');
+        console.log(`Pagamento aprovado! Evento emitido para a sala ${transactionId}.`);
       }
 
       res.sendStatus(200);
@@ -126,7 +134,7 @@ app.post('/send_discord_data', (req, res) => {
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = donationData;
+  const { amount } = req.body;
   if (!amount) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
