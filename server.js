@@ -94,10 +94,11 @@ app.post('/generate_pix_qr', (req, res) => {
 
 // Rota para receber notificações de pagamento do Mercado Pago
 app.post('/notifications', (req, res) => {
-  const paymentId = req.body.data && req.body.data.id;
+  const paymentId = req.body.data ? req.body.data.id : null;
 
   if (!paymentId) {
     console.error('Erro: paymentId não encontrado na notificação.');
+    console.log('Notificação recebida:', req.body);
     return res.sendStatus(400);
   }
 
@@ -129,15 +130,15 @@ app.post('/notifications', (req, res) => {
 
 // Rota para processar o envio dos dados do Discord
 app.post('/send_discord_data', (req, res) => {
-  const { discordNick, confirmationName, confirmationEmail } = req.body;
+  const { discordNick, confirmationName, confirmationEmail, socketId } = req.body;
 
-  if (!discordNick || !confirmationName || !confirmationEmail) {
+  if (!discordNick || !confirmationName || !confirmationEmail || !socketId) {
     res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
     return;
   }
 
   // Garantir que os dados da doação estejam disponíveis
-  const { amount } = donationData[req.body.socketId] || {};
+  const { amount } = donationData[socketId] || {};
   if (!amount) {
     res.status(400).json({ error: 'Valor da doação não encontrado. Por favor, tente novamente.' });
     return;
